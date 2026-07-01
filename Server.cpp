@@ -6,7 +6,7 @@
 /*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/18 18:04:01 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/07/01 13:48:37 by marvin           ###   ########.fr       */
+/*   Updated: 2026/07/01 14:15:00 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -68,11 +68,23 @@ bool Server::handleNICK(int sock, ClientInfo &client, const std::string &command
 	client.nickname = newNick;
 	client.hasNick = true;
 
+	std::string nickMsg = ":" + oldNick + " NICK " + newNick + "\r\n";
+	std::set<int> notified;
+
 	for (std::map<std::string, Channel>::iterator it = _channels.begin(); it != _channels.end(); ++it)
 	{
 		if (it->second.hasMember(sock))
 		{
 			it->second.updateNickname(sock, newNick);
+			const std::set<int> &members = it->second.getMembers();
+			for (std::set<int>::const_iterator mit = members.begin(); mit != members.end(); ++mit)
+			{
+				if (notified.find(*mit) == notified.end())
+				{
+					sendAll(*mit, nickMsg);
+					notified.insert(*mit);
+				}
+			}
 		}
 	}
 
@@ -123,6 +135,34 @@ bool Server::handleJOIN(int sock, ClientInfo &client, const std::string &command
 	}
 
 	Channel &channel = it->second;
+
+	if (!isFirstMember)
+	{
+		if (channel.isInviteOnly())
+		{
+			sendAll(sock, "473 " + client.nickname + " " + channelName + " :Cannot join channel (+i)\r\n");
+			return false;
+		}
+
+		if (channel.hasKey())
+		{
+			std::string key = "";
+			size_t keyPos = command.find(' ', 5);
+			if (keyPos != std::string::npos)
+				key = command.substr(keyPos + 1);
+			if (key != channel.getKey())
+			{
+				sendAll(sock, "475 " + client.nickname + " " + channelName + " :Cannot join channel (+k)\r\n");
+				return false;
+			}
+		}
+
+		if (channel.getMemberLimit() > 0 && (int)channel.getMemberCount() >= channel.getMemberLimit())
+		{
+			sendAll(sock, "471 " + client.nickname + " " + channelName + " :Cannot join channel (+l)\r\n");
+			return false;
+		}
+	}
 
 	if (isFirstMember || channel.getMemberCount() == 0)
 	{
@@ -587,6 +627,14 @@ bool Server::handlePRIVMSG(int sock, ClientInfo &client, const std::string &comm
 		}
 
 		Channel &channel = it->second;
+
+		if (!channel.hasMember(sock))
+		{
+			std::string reply = "442 " + target + " :You're not on that channel\r\n";
+			sendAll(sock, reply);
+			return false;
+		}
+
 		const std::set<int> &members = channel.getMembers();
 		for (std::set<int>::const_iterator mit = members.begin(); mit != members.end(); ++mit)
 		{
@@ -767,6 +815,14 @@ bool Server::handleClientMessage(size_t index)
 			bool removed = handlePASS(sock, client, command, index);
 			if (removed)
 				return true;
+			continue;
+		}
+
+        
+		if (command.compare(0, 4, "PING") == 0)
+		{
+			std::string token = (command.size() > 5) ? command.substr(5) : "ping";
+			sendAll(sock, ":ircserv PONG " + token + "\r\n");
 			continue;
 		}
 
