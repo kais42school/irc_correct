@@ -6,7 +6,7 @@
 /*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/18 18:04:01 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/07/01 14:15:00 by marvin           ###   ########.fr       */
+/*   Updated: 2026/07/02 01:20:57 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,7 +26,7 @@ bool Server::handlePASS(int sock, ClientInfo &client, const std::string &command
 {
 	if (command.compare(0, 5, "PASS ") != 0)
 	{
-		std::string reply = "464 :You must send PASS first\r\n";
+		std::string reply = ":ircserv 464 :You must send PASS first\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -39,7 +39,7 @@ bool Server::handlePASS(int sock, ClientInfo &client, const std::string &command
 		return false;
 	}
 
-	std::string reply = "464 :Password incorrect\r\n";
+	std::string reply = ":ircserv 464 :Password incorrect\r\n";
 	sendAll(sock, reply);
 	close(sock);
 	_clients.erase(sock);
@@ -51,7 +51,7 @@ bool Server::handleNICK(int sock, ClientInfo &client, const std::string &command
 {
 	if (command.size() <= 5)
 	{
-		std::string reply = "431 :No nickname given\r\n";
+		std::string reply = ":ircserv 431 :No nickname given\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -59,7 +59,7 @@ bool Server::handleNICK(int sock, ClientInfo &client, const std::string &command
 	std::string newNick = command.substr(5);
 	if (isNickInUse(newNick))
 	{
-		std::string reply = "433 " + newNick + " :Nickname is already in use\r\n";
+		std::string reply = ":ircserv 433 " + newNick + " :Nickname is already in use\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -97,7 +97,7 @@ bool Server::handleUSER(int sock, ClientInfo &client, const std::string &command
 {
 	if (command.size() <= 5)
 	{
-		std::string reply = "461 USER :Not enough parameters\r\n";
+		std::string reply = ":ircserv 461 USER :Not enough parameters\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -118,11 +118,19 @@ bool Server::handleUSER(int sock, ClientInfo &client, const std::string &command
 
 bool Server::handleJOIN(int sock, ClientInfo &client, const std::string &command)
 {
-	std::string channelName = command.substr(5);
+	std::string args = command.substr(5);
+	std::string channelName = args;
+	std::string providedKey = "";
+	size_t sep = args.find(' ');
+	if (sep != std::string::npos)
+	{
+		channelName = args.substr(0, sep);
+		providedKey = args.substr(sep + 1);
+	}
 
     if (channelName.empty() || channelName[0] != '#')
     {
-        sendAll(sock, "403 " + channelName + " :No such channel\r\n");
+        sendAll(sock, ":ircserv 403 " + channelName + " :No such channel\r\n");
         return false;
     }
     std::map<std::string, Channel>::iterator it = _channels.find(channelName);
@@ -138,31 +146,26 @@ bool Server::handleJOIN(int sock, ClientInfo &client, const std::string &command
 
 	if (!isFirstMember)
 	{
-		if (channel.isInviteOnly())
+		if (channel.isInviteOnly() && !channel.isInvited(sock))
 		{
-			sendAll(sock, "473 " + client.nickname + " " + channelName + " :Cannot join channel (+i)\r\n");
+			sendAll(sock, ":ircserv 473 " + client.nickname + " " + channelName + " :Cannot join channel (+i)\r\n");
 			return false;
 		}
 
-		if (channel.hasKey())
+		if (channel.hasKey() && providedKey != channel.getKey())
 		{
-			std::string key = "";
-			size_t keyPos = command.find(' ', 5);
-			if (keyPos != std::string::npos)
-				key = command.substr(keyPos + 1);
-			if (key != channel.getKey())
-			{
-				sendAll(sock, "475 " + client.nickname + " " + channelName + " :Cannot join channel (+k)\r\n");
-				return false;
-			}
+			sendAll(sock, ":ircserv 475 " + client.nickname + " " + channelName + " :Cannot join channel (+k)\r\n");
+			return false;
 		}
 
 		if (channel.getMemberLimit() > 0 && (int)channel.getMemberCount() >= channel.getMemberLimit())
 		{
-			sendAll(sock, "471 " + client.nickname + " " + channelName + " :Cannot join channel (+l)\r\n");
+			sendAll(sock, ":ircserv 471 " + client.nickname + " " + channelName + " :Cannot join channel (+l)\r\n");
 			return false;
 		}
 	}
+
+	channel.removeInvite(sock);
 
 	if (isFirstMember || channel.getMemberCount() == 0)
 	{
@@ -183,14 +186,14 @@ bool Server::handleJOIN(int sock, ClientInfo &client, const std::string &command
 	}
 
 	std::string namesList = channel.getMemberListWithModes();
-	std::string namesReply = "353 " + client.nickname + " = " + channelName + " :" + namesList + "\r\n";
+	std::string namesReply = ":ircserv 353 " + client.nickname + " = " + channelName + " :" + namesList + "\r\n";
 	sendAll(sock, namesReply);
-	std::string endNamesReply = "366 " + client.nickname + " " + channelName + " :End of NAMES list\r\n";
+	std::string endNamesReply = ":ircserv 366 " + client.nickname + " " + channelName + " :End of NAMES list\r\n";
 	sendAll(sock, endNamesReply);
 
 	if (!channel.getTopic().empty())
 	{
-		std::string topicReply = "332 " + client.nickname + " " + channelName + " :" + channel.getTopic() + "\r\n";
+		std::string topicReply = ":ircserv 332 " + client.nickname + " " + channelName + " :" + channel.getTopic() + "\r\n";
 		sendAll(sock, topicReply);
 	}
 
@@ -205,7 +208,7 @@ bool Server::handlePART(int sock, ClientInfo &client, const std::string &command
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		std::string reply = "403 " + channelName + " :No such channel\r\n";
+		std::string reply = ":ircserv 403 " + channelName + " :No such channel\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -248,7 +251,7 @@ bool Server::handleTOPIC(int sock, ClientInfo &client, const std::string &comman
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		std::string reply = "403 " + channelName + " :No such channel\r\n";
+		std::string reply = ":ircserv 403 " + channelName + " :No such channel\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -260,12 +263,12 @@ bool Server::handleTOPIC(int sock, ClientInfo &client, const std::string &comman
 	{
 		if (channel.getTopic().empty())
 		{
-			std::string reply = "331 " + client.nickname + " " + channelName + " :No topic is set\r\n";
+			std::string reply = ":ircserv 331 " + client.nickname + " " + channelName + " :No topic is set\r\n";
 			sendAll(sock, reply);
 		}
 		else
 		{
-			std::string reply = "332 " + client.nickname + " " + channelName + " :" + channel.getTopic() + "\r\n";
+			std::string reply = ":ircserv 332 " + client.nickname + " " + channelName + " :" + channel.getTopic() + "\r\n";
 			sendAll(sock, reply);
 		}
 		return false;
@@ -274,7 +277,7 @@ bool Server::handleTOPIC(int sock, ClientInfo &client, const std::string &comman
 	
 	if (channel.isTopicRestricted() && !channel.isOperator(sock))
 	{
-		std::string reply = "482 " + channelName + " :You're not channel operator\r\n";
+		std::string reply = ":ircserv 482 " + channelName + " :You're not channel operator\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -305,7 +308,7 @@ bool Server::handleMODE(int sock, ClientInfo &client, const std::string &command
 	std::map<std::string, Channel>::iterator it = _channels.find(target);
 	if (it == _channels.end())
 	{
-		std::string reply = "403 " + target + " :No such channel\r\n";
+		std::string reply = ":ircserv 403 " + target + " :No such channel\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -314,7 +317,7 @@ bool Server::handleMODE(int sock, ClientInfo &client, const std::string &command
 
 	if (!channel.isOperator(sock))
 	{
-		std::string reply = "482 " + target + " :You're not channel operator\r\n";
+		std::string reply = ":ircserv 482 " + target + " :You're not channel operator\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -451,7 +454,7 @@ bool Server::handleKICK(int sock, ClientInfo &client, const std::string &command
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		std::string reply = "403 " + channelName + " :No such channel\r\n";
+		std::string reply = ":ircserv 403 " + channelName + " :No such channel\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -460,7 +463,7 @@ bool Server::handleKICK(int sock, ClientInfo &client, const std::string &command
 
 	if (!channel.isOperator(sock))
 	{
-		std::string reply = "482 " + channelName + " :You're not channel operator\r\n";
+		std::string reply = ":ircserv 482 " + channelName + " :You're not channel operator\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -477,7 +480,7 @@ bool Server::handleKICK(int sock, ClientInfo &client, const std::string &command
 
 	if (targetSock == -1)
 	{
-		std::string reply = "401 " + target + " :No such nick\r\n";
+		std::string reply = ":ircserv 401 " + target + " :No such nick\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -514,7 +517,7 @@ bool Server::handleINVITE(int sock, ClientInfo &client, const std::string &comma
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		std::string reply = "403 " + channelName + " :No such channel\r\n";
+		std::string reply = ":ircserv 403 " + channelName + " :No such channel\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -523,7 +526,7 @@ bool Server::handleINVITE(int sock, ClientInfo &client, const std::string &comma
 
 	if (channel.isInviteOnly() && !channel.isOperator(sock))
 	{
-		std::string reply = "482 " + channelName + " :You're not channel operator\r\n";
+		std::string reply = ":ircserv 482 " + channelName + " :You're not channel operator\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
@@ -540,15 +543,16 @@ bool Server::handleINVITE(int sock, ClientInfo &client, const std::string &comma
 
 	if (targetSock == -1)
 	{
-		std::string reply = "401 " + target + " :No such nick\r\n";
+		std::string reply = ":ircserv 401 " + target + " :No such nick\r\n";
 		sendAll(sock, reply);
 		return false;
 	}
 
 	std::string inviteMsg = ":" + client.nickname + " INVITE " + target + " " + channelName + "\r\n";
 	sendAll(targetSock, inviteMsg);
+	channel.addInvite(targetSock);
 
-	std::string confirmMsg = "341 " + client.nickname + " " + target + " " + channelName + "\r\n";
+	std::string confirmMsg = ":ircserv 341 " + client.nickname + " " + target + " " + channelName + "\r\n";
 	sendAll(sock, confirmMsg);
 
 	return false;
@@ -558,7 +562,7 @@ bool Server::handleLIST(int sock, ClientInfo &client, const std::string &command
 {
 	std::string args = command.substr(4);
 
-	std::string startMsg = "321 " + client.nickname + " Channel :Users Name\r\n";
+	std::string startMsg = ":ircserv 321 " + client.nickname + " Channel :Users Name\r\n";
 	sendAll(sock, startMsg);
 
 	if (args.empty() || args[0] == ' ')
@@ -569,7 +573,7 @@ bool Server::handleLIST(int sock, ClientInfo &client, const std::string &command
 			const Channel &channel = it->second;
 			char countStr[32];
 			snprintf(countStr, sizeof(countStr), "%u", (unsigned int)channel.getMemberCount());
-			std::string listMsg = "322 " + client.nickname + " " + channel.getName() + " " +
+			std::string listMsg = ":ircserv 322 " + client.nickname + " " + channel.getName() + " " +
 								  countStr + " :" + channel.getTopic() + "\r\n";
 			sendAll(sock, listMsg);
 		}
@@ -586,13 +590,13 @@ bool Server::handleLIST(int sock, ClientInfo &client, const std::string &command
 			const Channel &channel = it->second;
 			char countStr[32];
 			snprintf(countStr, sizeof(countStr), "%u", (unsigned int)channel.getMemberCount());
-			std::string listMsg = "322 " + client.nickname + " " + channel.getName() + " " +
+			std::string listMsg = ":ircserv 322 " + client.nickname + " " + channel.getName() + " " +
 								  countStr + " :" + channel.getTopic() + "\r\n";
 			sendAll(sock, listMsg);
 		}
 	}
 
-	std::string endMsg = "323 " + client.nickname + " :End of LIST\r\n";
+	std::string endMsg = ":ircserv 323 " + client.nickname + " :End of LIST\r\n";
 	sendAll(sock, endMsg);
 
 	return false;
@@ -621,7 +625,7 @@ bool Server::handlePRIVMSG(int sock, ClientInfo &client, const std::string &comm
 		std::map<std::string, Channel>::iterator it = _channels.find(target);
 		if (it == _channels.end())
 		{
-			std::string reply = "403 " + target + " :No such channel\r\n";
+			std::string reply = ":ircserv 403 " + target + " :No such channel\r\n";
 			sendAll(sock, reply);
 			return false;
 		}
@@ -630,7 +634,7 @@ bool Server::handlePRIVMSG(int sock, ClientInfo &client, const std::string &comm
 
 		if (!channel.hasMember(sock))
 		{
-			std::string reply = "442 " + target + " :You're not on that channel\r\n";
+			std::string reply = ":ircserv 442 " + target + " :You're not on that channel\r\n";
 			sendAll(sock, reply);
 			return false;
 		}
@@ -658,9 +662,61 @@ bool Server::handlePRIVMSG(int sock, ClientInfo &client, const std::string &comm
 
 		if (!found)
 		{
-			std::string reply = "401 " + target + " :No such nick\r\n";
+			std::string reply = ":ircserv 401 " + target + " :No such nick\r\n";
 			sendAll(sock, reply);
 		}
+	}
+
+	return false;
+}
+
+bool Server::handleNOTICE(int sock, ClientInfo &client, const std::string &command)
+{
+	size_t firstSpace = command.find(' ');
+	if (firstSpace == std::string::npos)
+		return false;
+
+	size_t secondSpace = command.find(' ', firstSpace + 1);
+	if (secondSpace == std::string::npos)
+		return false;
+
+	std::string target = command.substr(firstSpace + 1, secondSpace - firstSpace - 1);
+	std::string message = command.substr(secondSpace + 1);
+	if (!message.empty() && message[0] == ':')
+		message.erase(0, 1);
+
+	std::string msgToSend = ":" + client.nickname + " NOTICE " + target + " :" + message + "\r\n";
+
+	/* -------- Channel notice -------- */
+	if (!target.empty() && target[0] == '#')
+	{
+		std::map<std::string, Channel>::iterator it = _channels.find(target);
+		if (it == _channels.end())
+			return false; // NOTICE never replies with an error, per RFC 2812
+
+		Channel &channel = it->second;
+		if (!channel.hasMember(sock))
+			return false;
+
+		const std::set<int> &members = channel.getMembers();
+		for (std::set<int>::const_iterator mit = members.begin(); mit != members.end(); ++mit)
+		{
+			if (*mit != sock)
+				sendAll(*mit, msgToSend);
+		}
+	}
+	/* -------- User notice -------- */
+	else
+	{
+		for (std::map<int, ClientInfo>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+		{
+			if (it->second.nickname == target)
+			{
+				sendAll(it->second.socket, msgToSend);
+				break;
+			}
+		}
+		// silently dropped if the nick doesn't exist — no error reply for NOTICE
 	}
 
 	return false;
@@ -844,7 +900,7 @@ bool Server::handleClientMessage(size_t index)
 			if (!client.isRegistered && client.hasNick && client.hasUser)
 			{
 				client.isRegistered = true;
-				std::string welcome = "001 " + client.nickname + " :Welcome to the IRC server\r\n";
+				std::string welcome = ":ircserv 001 " + client.nickname + " :Welcome to the IRC server\r\n";
 				sendAll(sock, welcome);
 				std::cout << "Client " << sock << " fully registered as " << client.nickname << std::endl;
 			}
@@ -855,7 +911,7 @@ bool Server::handleClientMessage(size_t index)
 		if (!client.isRegistered && client.hasNick && client.hasUser)
 		{
 			client.isRegistered = true;
-			std::string welcome = "001 " + client.nickname + " :Welcome to the IRC server\r\n";
+			std::string welcome = ":ircserv 001 " + client.nickname + " :Welcome to the IRC server\r\n";
 			sendAll(sock, welcome);
 			std::cout << "Client " << sock << " fully registered as " << client.nickname << std::endl;
 		}
@@ -872,7 +928,7 @@ bool Server::handleClientMessage(size_t index)
 
 			if (cmd == "JOIN" || cmd == "PART" || cmd == "PRIVMSG")
 			{
-				std::string reply = "451 " + cmd + " :You have not registered\r\n";
+				std::string reply = ":ircserv 451 " + cmd + " :You have not registered\r\n";
 				sendAll(sock, reply);
 				continue;
 			}
@@ -898,6 +954,14 @@ bool Server::handleClientMessage(size_t index)
 		if (command.compare(0, 7, "PRIVMSG") == 0)
 		{
 			if (handlePRIVMSG(sock, client, command))
+				return true;
+			continue;
+		}
+
+        
+		if (command.compare(0, 6, "NOTICE") == 0)
+		{
+			if (handleNOTICE(sock, client, command))
 				return true;
 			continue;
 		}
@@ -1274,7 +1338,7 @@ bool Server::handleDCC(int sock, ClientInfo &client, const std::string &command)
 
 	if (!receiver_found)
 	{
-		sendAll(sock, "401 " + receiver_nick + " :No such nick/channel\r\n");
+		sendAll(sock, ":ircserv 401 " + receiver_nick + " :No such nick/channel\r\n");
 		return false;
 	}
 

@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.hpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: bhamoum <bhamoum@student.42.fr>            +#+  +:+       +#+        */
+/*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/18 22:26:38 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/01/19 18:50:07 by bhamoum          ###   ########.fr       */
+/*   Updated: 2026/07/02 01:21:30 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -47,6 +47,7 @@ private:
 	bool _topic_restricted;           /**< +t mode: only operators can set topic */
 	std::string _key;                 /**< +k mode: channel key/password */
 	std::set<int> _banned;            /**< Set of banned socket FDs */
+	std::set<int> _invited;           /**< Sockets invited to join an invite-only (+i) channel */
 	std::map<int, std::string> _nicknames; /**< Map socket FD to nickname for quick lookup */
 
 public:
@@ -75,6 +76,9 @@ public:
 	const std::string &getTopicSetter() const;
 	int getMemberLimit() const;
 	bool isInviteOnly() const;
+	void addInvite(int sock);
+	bool isInvited(int sock) const;
+	void removeInvite(int sock);
 	bool isTopicRestricted() const;
 	size_t getMemberCount() const;
 	//@}

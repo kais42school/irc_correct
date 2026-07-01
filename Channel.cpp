@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.cpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: bhamoum <bhamoum@student.42.fr>            +#+  +:+       +#+        */
+/*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/18 22:26:37 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/01/19 18:50:07 by bhamoum          ###   ########.fr       */
+/*   Updated: 2026/07/02 01:21:23 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -60,6 +60,21 @@ int Channel::getMemberLimit() const
 bool Channel::isInviteOnly() const
 {
 	return _invite_only;
+}
+
+void Channel::addInvite(int sock)
+{
+	_invited.insert(sock);
+}
+
+bool Channel::isInvited(int sock) const
+{
+	return _invited.find(sock) != _invited.end();
+}
+
+void Channel::removeInvite(int sock)
+{
+	_invited.erase(sock);
 }
 
 bool Channel::isTopicRestricted() const

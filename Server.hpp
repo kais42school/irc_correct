@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: bhamoum <bhamoum@student.42.fr>            +#+  +:+       +#+        */
+/*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/18 18:04:02 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/01/19 18:25:50 by bhamoum          ###   ########.fr       */
+/*   Updated: 2026/07/02 01:21:05 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -222,6 +222,7 @@ private:
 	 * @return true if client was disconnected, false otherwise
 	 */
 	bool handlePRIVMSG(int sock, ClientInfo &client, const std::string &command);
+	bool handleNOTICE(int sock, ClientInfo &client, const std::string &command);
 
 	/**
 	 * @brief Handle QUIT command (disconnect client).
