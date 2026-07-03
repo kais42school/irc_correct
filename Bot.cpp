@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Bot.cpp                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: bhamoum <bhamoum@student.42.fr>            +#+  +:+       +#+        */
+/*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/19 17:15:02 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/01/19 18:50:07 by bhamoum          ###   ########.fr       */
+/*   Updated: 2026/07/03 12:06:51 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,11 +30,16 @@ Bot::~Bot()
 
 int Bot::setNonBlocking(int fd)
 {
-	int flags = fcntl(fd, F_GETFL, 0);
-	if (flags == -1)
-		return -1;
-	return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	return fcntl(fd, F_SETFL, O_NONBLOCK);
 }
+
+// int Bot::setNonBlocking(int fd)
+// {
+// 	int flags = fcntl(fd, F_GETFL, 0);
+// 	if (flags == -1)
+// 		return -1;
+// 	return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+// }
 
 int Bot::connect()
 {

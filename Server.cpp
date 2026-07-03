@@ -6,7 +6,7 @@
 /*   By: marvin <marvin@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/18 18:04:01 by bhamoum           #+#    #+#             */
-/*   Updated: 2026/07/02 01:20:57 by marvin           ###   ########.fr       */
+/*   Updated: 2026/07/03 12:07:13 by marvin           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -1128,13 +1128,20 @@ bool Server::sendAll(int sock, const std::string &data)
 
 int Server::setNonBlocking(int fd)
 {
-	int flags = fcntl(fd, F_GETFL, 0);
-	if (flags == -1)
-		return -1;
-	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 		return -1;
 	return 0;
 }
+
+// int Server::setNonBlocking(int fd)
+// {
+// 	int flags = fcntl(fd, F_GETFL, 0);
+// 	if (flags == -1)
+// 		return -1;
+// 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+// 		return -1;
+// 	return 0;
+// }
 
 std::string Server::getClientIPAddress(int sock)
 {
